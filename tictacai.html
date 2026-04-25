@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>X & O Pro AI Stable</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    position: fixed;
+    overflow: hidden;
+    background: radial-gradient(#111, #000);
+    font-family: monospace;
+    color: #0f0;
+}
+
+/* SETUP */
+#setup {
+    position: absolute;
+    top: 20px;
+    width: 100%;
+    text-align: center;
+}
+
+input {
+    padding: 6px;
+    margin: 5px;
+    width: 140px;
+    background: #111;
+    border: 1px solid #0f0;
+    color: #0f0;
+}
+
+/* GAME AREA */
+#gameArea {
+    position: absolute;
+    top: 55%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+/* HUD */
+#hud {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+
+.card {
+    width: 160px;
+    padding: 10px;
+    background: #111;
+    border: 2px solid #0f0;
+    border-radius: 10px;
+}
+
+/* STATUS */
+#status {
+    margin-bottom: 10px;
+}
+
+/* BOARD */
+#boardWrap {
+    position: relative;
+}
+
+#board {
+    display: grid;
+    grid-template-columns: repeat(3, 100px);
+    grid-gap: 6px;
+    padding: 10px;
+    background: #0a0a0a;
+    border: 2px solid #0f0;
+    border-radius: 12px;
+}
+
+.cell {
+    width: 100px;
+    height: 100px;
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 42px;
+    cursor: pointer;
+    border: 2px solid #0f0;
+}
+
+/* WIN LINE */
+#winLine {
+    position: absolute;
+    height: 6px;
+    background: red;
+    display: none;
+    border-radius: 6px;
+    box-shadow: 0 0 12px red;
+    transform-origin: left center;
+}
+
+/* OVERLAY */
+#overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    z-index: 10;
+}
+
+#overlayText {
+    font-size: 28px;
+    color: #0f0;
+}
+
+button {
+    margin-top: 10px;
+    padding: 8px 18px;
+    background: #0f0;
+    border: none;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 6px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="setup">
+    <input id="p1" placeholder="Your Name">
+    <button onclick="startGame()">Start</button>
+</div>
+
+<div id="gameArea">
+
+    <div id="hud">
+        <div class="card" id="pCard">Player: 0</div>
+        <div class="card" id="aCard">AI: 0</div>
+    </div>
+
+    <div id="status">Start Game</div>
+
+    <div id="boardWrap">
+        <div id="board"></div>
+        <div id="winLine"></div>
+    </div>
+
+    <button onclick="resetRound()">Restart</button>
+</div>
+
+<div id="overlay">
+    <div id="overlayText"></div>
+    <button onclick="nextRound()">NEXT ROUND</button>
+</div>
+
+<script>
+
+/* =========================
+   🔊 AUDIO ENGINE (PERSISTENT)
+========================= */
+let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function beep(freq, duration){
+
+    if(audioCtx.state === "suspended"){
+        audioCtx.resume();
+    }
+
+    let osc = audioCtx.createOscillator();
+    let gain = audioCtx.createGain();
+
+    osc.type = "square";
+    osc.frequency.value = freq;
+    gain.gain.value = 0.1;
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration/1000);
+}
+
+/* =========================
+   📳 HAPTIC
+========================= */
+function vibrate(pattern){
+    if(navigator.vibrate){
+        navigator.vibrate(pattern);
+    }
+}
+
+/* =========================
+   GAME STATE
+========================= */
+let board = ["","","","","","","","",""];
+let gameOver = false;
+
+let player = "X";
+let ai = "O";
+
+let name = "Player";
+
+let scoreP = 0;
+let scoreAI = 0;
+
+let round = 0;
+let playerTurn = true;
+
+/* =========================
+   ELEMENTS
+========================= */
+const boardEl = document.getElementById("board");
+const statusEl = document.getElementById("status");
+const overlay = document.getElementById("overlay");
+const overlayText = document.getElementById("overlayText");
+const winLine = document.getElementById("winLine");
+
+/* =========================
+   START GAME
+========================= */
+function startGame(){
+    name = document.getElementById("p1").value || "Player";
+    document.getElementById("setup").style.display = "none";
+    startRound();
+}
+
+/* =========================
+   ROUND CONTROL
+========================= */
+function startRound(){
+
+    board = ["","","","","","","","",""];
+    gameOver = false;
+    winLine.style.display = "none";
+    overlay.style.display = "none";
+
+    round++;
+    playerTurn = (round % 2 === 1);
+
+    createBoard();
+
+    if(playerTurn){
+        statusEl.innerText = name + " starts";
+    } else {
+        statusEl.innerText = "AI starts";
+        setTimeout(aiMove, 500);
+    }
+}
+
+/* =========================
+   BOARD
+========================= */
+function createBoard(){
+
+    boardEl.innerHTML = "";
+
+    board.forEach((c,i)=>{
+        let d = document.createElement("div");
+        d.className = "cell";
+        d.innerText = c;
+        d.onclick = ()=>playerMove(i);
+        boardEl.appendChild(d);
+    });
+
+    boardEl.appendChild(winLine);
+}
+
+/* =========================
+   PLAYER MOVE
+========================= */
+function playerMove(i){
+
+    if(board[i] || gameOver || !playerTurn) return;
+
+    board[i] = player;
+
+    beep(600,80);
+    vibrate(30);
+
+    if(checkWin(player)){
+        scoreP++;
+        updateScore();
+        endGame(name + " Wins!", player);
+        return;
+    }
+
+    if(!board.includes("")){
+        endGame("Draw!");
+        return;
+    }
+
+    playerTurn = false;
+    createBoard();
+
+    setTimeout(aiMove, 400);
+}
+
+/* =========================
+   AI MOVE
+========================= */
+function aiMove(){
+
+    let move = bestMove();
+    board[move] = ai;
+
+    beep(200,80);
+    vibrate(20);
+
+    if(checkWin(ai)){
+        scoreAI++;
+        updateScore();
+        endGame("AI Wins!", ai);
+        return;
+    }
+
+    if(!board.includes("")){
+        endGame("Draw!");
+        return;
+    }
+
+    playerTurn = true;
+    createBoard();
+
+    statusEl.innerText = name + " Turn";
+}
+
+/* =========================
+   SMART AI
+========================= */
+function bestMove(){
+
+    for(let i=0;i<9;i++){
+        if(board[i]===""){
+            board[i]=ai;
+            if(checkWin(ai)){ board[i]=""; return i; }
+            board[i]="";
+        }
+    }
+
+    for(let i=0;i<9;i++){
+        if(board[i]===""){
+            board[i]=player;
+            if(checkWin(player)){ board[i]=""; return i; }
+            board[i]="";
+        }
+    }
+
+    if(board[4]==="") return 4;
+
+    let corners=[0,2,6,8].filter(i=>board[i]==="");
+    if(corners.length) return corners[Math.floor(Math.random()*corners.length)];
+
+    return board.findIndex(v=>v==="");
+}
+
+/* =========================
+   WIN CHECK
+========================= */
+function checkWin(p){
+    const win = [
+        [0,1,2],[3,4,5],[6,7,8],
+        [0,3,6],[1,4,7],[2,5,8],
+        [0,4,8],[2,4,6]
+    ];
+
+    return win.find(c=>c.every(i=>board[i]===p));
+}
+
+/* =========================
+   END GAME (SAFE STATE)
+========================= */
+function endGame(text, winner){
+
+    gameOver = true;
+
+    beep(900,200);
+    vibrate([100,50,100]);
+
+    statusEl.innerText = text;
+
+    overlayText.innerText = text;
+    overlay.style.display = "flex";
+
+    if(winner){
+        drawWinLine(checkWin(winner));
+    }
+}
+
+/* =========================
+   NEXT ROUND (ONLY BOARD RESET)
+========================= */
+function nextRound(){
+
+    overlay.style.display = "none";
+
+    board = ["","","","","","","","",""];
+    gameOver = false;
+    winLine.style.display = "none";
+
+    round++;
+    playerTurn = (round % 2 === 1);
+
+    createBoard();
+
+    if(!playerTurn){
+        statusEl.innerText = "AI starts";
+        setTimeout(aiMove, 500);
+    } else {
+        statusEl.innerText = name + " Turn";
+    }
+}
+
+/* =========================
+   SCORE (PERSISTENT)
+========================= */
+function updateScore(){
+    document.getElementById("pCard").innerText = name + ": " + scoreP;
+    document.getElementById("aCard").innerText = "AI: " + scoreAI;
+}
+
+/* =========================
+   WIN LINE
+========================= */
+function getPos(i){
+    const s=100,g=6,o=10;
+    let r=Math.floor(i/3),c=i%3;
+    return {
+        x:o+c*(s+g)+s/2,
+        y:o+r*(s+g)+s/2
+    };
+}
+
+function drawWinLine(combo){
+
+    if(!combo) return;
+
+    let a=getPos(combo[0]);
+    let b=getPos(combo[2]);
+
+    let dx=b.x-a.x;
+    let dy=b.y-a.y;
+
+    let len=Math.sqrt(dx*dx+dy*dy);
+    let angle=Math.atan2(dy,dx);
+
+    winLine.style.display="block";
+    winLine.style.width=len+"px";
+    winLine.style.left=a.x+"px";
+    winLine.style.top=a.y+"px";
+    winLine.style.transform=`rotate(${angle}rad)`;
+}
+
+/* RESET */
+function resetRound(){
+    nextRound();
+}
+
+createBoard();
+
+</script>
+
+</body>
+  </html>
