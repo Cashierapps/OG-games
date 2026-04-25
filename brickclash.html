@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Breakout Pro Final + Speed Boost</title>
+
+<style>
+body {
+    margin: 0;
+    background: #000;
+    font-family: monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    color: #0f0;
+}
+
+/* HUD */
+.hud {
+    width: 340px;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+canvas {
+    background: #111;
+    border: 2px solid #0f0;
+}
+
+/* GAME OVER */
+#gameOver {
+    position: fixed;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    background: rgba(0,0,0,0.92);
+    display:none;
+    justify-content:center;
+    align-items:center;
+}
+
+.box {
+    border: 2px solid #0f0;
+    padding: 20px;
+    text-align: center;
+}
+
+button {
+    margin-top:10px;
+    padding:10px;
+    width:120px;
+    background:#0f0;
+    border:none;
+    font-weight:bold;
+}
+</style>
+</head>
+
+<body>
+
+<div class="hud">
+    <div>Score: <span id="score">0</span></div>
+    <div>Level: <span id="level">1</span></div>
+    <div>High: <span id="high">0</span></div>
+</div>
+
+<canvas id="game" width="340" height="420"></canvas>
+
+<div id="gameOver">
+    <div class="box">
+        <h2>GAME OVER</h2>
+        <button onclick="restart()">RESTART</button>
+    </div>
+</div>
+
+<script>
+
+/* ================= SOUND ENGINE ================= */
+const audio = new (window.AudioContext || window.webkitAudioContext)();
+
+function beep(freq, time, vol = 0.05, type = "sine") {
+    const o = audio.createOscillator();
+    const g = audio.createGain();
+
+    o.frequency.value = freq;
+    o.type = type;
+    g.gain.value = vol;
+
+    o.connect(g);
+    g.connect(audio.destination);
+
+    o.start();
+    setTimeout(() => o.stop(), time);
+}
+
+/* SOUNDS */
+function hitSound(){ beep(250,40); }
+function breakSound(){ beep(500,60); }
+function levelSound(){
+    beep(600,120);
+    setTimeout(()=>beep(900,150),100);
+}
+function gameOverSound(){
+    beep(180,200,0.07);
+    setTimeout(()=>beep(90,300,0.06),200);
+}
+
+/* ================= GAME STATE ================= */
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let paddle = { x:140, y:390, w:80, h:10 };
+
+let ball = { x:170, y:200, r:6, dx:2.5, dy:-2.5 };
+
+let score = 0;
+let level = 1;
+let gameOver = false;
+
+let high = localStorage.getItem("breakoutHigh") || 0;
+document.getElementById("high").textContent = high;
+
+/* 🟢 SPEED BOOST (ADDED) */
+let speedBoost = 1;
+
+/* ================= BRICKS ================= */
+let bricks = [];
+
+function createLevel(){
+    bricks = [];
+
+    let rows = 3 + level;
+    let cols = 7;
+
+    let offsetX = 10;
+    let offsetY = 30;
+
+    for(let r=0;r<rows;r++){
+        for(let c=0;c<cols;c++){
+
+            let iron = level >= 3 && Math.random() < 0.25;
+
+            bricks.push({
+                x: offsetX + c * 45,
+                y: offsetY + r * 22,
+                w: 42,
+                h: 14,
+                hp: iron ? 2 : 1,
+                type: iron ? "iron" : "normal"
+            });
+        }
+    }
+}
+
+createLevel();
+
+/* TOUCH CONTROL */
+canvas.addEventListener("touchmove", e=>{
+    let rect = canvas.getBoundingClientRect();
+    let x = e.touches[0].clientX - rect.left;
+
+    paddle.x = x - paddle.w/2;
+
+    if(paddle.x < 0) paddle.x = 0;
+    if(paddle.x + paddle.w > canvas.width)
+        paddle.x = canvas.width - paddle.w;
+});
+
+/* COLLISION */
+function hit(b){
+    return ball.x > b.x &&
+           ball.x < b.x + b.w &&
+           ball.y > b.y &&
+           ball.y < b.y + b.h;
+}
+
+/* ================= LOOP ================= */
+function update(){
+
+    if(gameOver) return;
+
+    /* 🟢 SPEED INCREASE (ADDED) */
+    speedBoost += 0.0008;
+
+    ball.x += ball.dx * speedBoost;
+    ball.y += ball.dy * speedBoost;
+
+    /* WALLS */
+    if(ball.x < 0 || ball.x > canvas.width) ball.dx *= -1;
+    if(ball.y < 0) ball.dy *= -1;
+
+    /* PADDLE */
+    if(ball.y + ball.r > paddle.y &&
+       ball.x > paddle.x &&
+       ball.x < paddle.x + paddle.w){
+        ball.dy *= -1;
+        hitSound();
+    }
+
+    /* BRICKS */
+    let left = 0;
+
+    bricks.forEach(b=>{
+        if(b.hp > 0){
+            left++;
+
+            if(hit(b)){
+                ball.dy *= -1;
+                b.hp--;
+
+                hitSound();
+
+                if(b.hp <= 0){
+                    score += 10;
+                    breakSound();
+                }
+            }
+        }
+    });
+
+    /* LEVEL COMPLETE */
+    if(left === 0){
+        level++;
+        levelSound();
+
+        ball.x = 170;
+        ball.y = 200;
+        ball.dx = 2.5;
+        ball.dy = -2.5;
+        speedBoost = 1; // reset speed each level
+
+        createLevel();
+    }
+
+    /* GAME OVER */
+    if(ball.y > canvas.height){
+        gameOver = true;
+        gameOverSound();
+
+        if(score > high){
+            localStorage.setItem("breakoutHigh", score);
+        }
+
+        document.getElementById("gameOver").style.display = "flex";
+    }
+
+    updateHUD();
+    draw();
+    requestAnimationFrame(update);
+}
+
+/* HUD */
+function updateHUD(){
+    document.getElementById("score").textContent = score;
+    document.getElementById("level").textContent = level;
+}
+
+/* DRAW */
+function draw(){
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    /* PADDLE */
+    ctx.fillStyle = "#00ccff";
+    ctx.fillRect(paddle.x,paddle.y,paddle.w,paddle.h);
+
+    /* BALL */
+    ctx.beginPath();
+    ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);
+    ctx.fillStyle = "#0f0";
+    ctx.fill();
+
+    /* BRICKS */
+    bricks.forEach(b=>{
+        if(b.hp > 0){
+            ctx.fillStyle = b.type === "iron" ? "#888" : "#0f0";
+            ctx.fillRect(b.x,b.y,b.w,b.h);
+        }
+    });
+}
+
+/* RESTART */
+function restart(){
+    location.reload();
+}
+
+update();
+
+</script>
+
+</body>
+  </html>
