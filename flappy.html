@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flappy Bird Easy Mode</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body, html { width: 100%; height: 100%; overflow: hidden; font-family: Arial, sans-serif; }
+  canvas { display: block; background: url('https://i.postimg.cc/XJncvZmB/OFt-Vk-JDGzv-Ur-Wh-Oy-I34-EOp-Hcd-A.png') no-repeat center center; background-size: cover; }
+  #resetBtn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 6px 12px;
+    font-size: 16px;
+    background: rgba(255,255,255,0.7);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<button id="resetBtn">Reset</button>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+const GAME_WIDTH = 800;
+const GAME_HEIGHT = 600;
+
+let scaleX, scaleY;
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  scaleX = canvas.width / GAME_WIDTH;
+  scaleY = canvas.height / GAME_HEIGHT;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// UFO
+const ufoImg = new Image();
+ufoImg.src = 'https://i.postimg.cc/Xqv34NWP/Tenor-unscreen.gif';
+const ufo = { x: GAME_WIDTH*0.2, y: GAME_HEIGHT/2, w: 60, h: 44, vel: 0, gravity: 0.4, lift: -5 };
+
+// Pipes and coins
+const pipeWidth = 80;
+const pipeGap = 200;
+let pipes = [];
+let coins = [];
+let score = 0;
+let coinsCollected = 0;
+
+// Checkpoints
+let lastCheckpointScore = 0;
+let lastCheckpointCoins = 0;
+
+let gameOver = false;
+let pipeCount = 0;
+let pipeSpeed = 2;
+
+// Coin image
+const coinImg = new Image();
+coinImg.src = 'https://i.postimg.cc/FHwjS1nj/1fa99.png';
+
+// Add new pipe
+function addPipe() {
+  pipeCount++;
+  const topHeight = Math.random() * (GAME_HEIGHT - pipeGap - 100) + 50;
+  const pipe = { x: GAME_WIDTH, top: topHeight, bottom: GAME_HEIGHT - topHeight - pipeGap, passed: false, checkpoint: false };
+  if(pipeCount % 10 === 0) pipe.checkpoint = true;
+  pipes.push(pipe);
+
+  if(pipe.checkpoint){
+    coins.push({ x: pipe.x + pipeWidth/2 - 30, y: pipe.top + pipeGap/2 - 25, w: 30, h: 30, collected: false });
+    coins.push({ x: pipe.x + pipeWidth/2 + 5, y: pipe.top + pipeGap/2 - 25, w: 30, h: 30, collected: false });
+  } else {
+    coins.push({ x: pipe.x + pipeWidth/2 - 15, y: pipe.top + pipeGap/2 - 15, w: 30, h: 30, collected: false });
+  }
+}
+
+// Collision
+function collision(pipe) {
+  const pad = 5;
+  return (ufo.y + pad < pipe.top || ufo.y + ufo.h - pad > GAME_HEIGHT - pipe.bottom) &&
+         (ufo.x + ufo.w - pad > pipe.x && ufo.x + pad < pipe.x + pipeWidth);
+}
+
+// Collect coin
+function collectCoin(coin) {
+  return (!coin.collected && ufo.x + ufo.w > coin.x && ufo.x < coin.x + coin.w && ufo.y + ufo.h > coin.y && ufo.y < coin.y + coin.h);
+}
+
+// Resume from last checkpoint
+function resumeFromCheckpoint() {
+  gameOver = false;
+  ufo.y = GAME_HEIGHT/2;
+  ufo.vel = 0;
+  score = lastCheckpointScore;
+  coinsCollected = lastCheckpointCoins;
+  pipes = [];
+  coins = [];
+  pipeCount = lastCheckpointScore;
+  pipeSpeed = 2 + score * 0.05; // speed increases gradually
+}
+
+// Reset game from start
+function resetGame() {
+  gameOver = false;
+  ufo.y = GAME_HEIGHT/2;
+  ufo.vel = 0;
+  score = 0;
+  coinsCollected = 0;
+  lastCheckpointScore = 0;
+  lastCheckpointCoins = 0;
+  pipes = [];
+  coins = [];
+  pipeCount = 0;
+  pipeSpeed = 2;
+}
+
+// Update game
+function update() {
+  ctx.save();
+  ctx.scale(scaleX, scaleY);
+  ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+  if(!gameOver) ufo.vel += ufo.gravity;
+  ufo.y += ufo.vel;
+
+  if(ufo.y + ufo.h > GAME_HEIGHT || ufo.y < 0) gameOver = true;
+
+  ctx.drawImage(ufoImg, ufo.x, ufo.y, ufo.w, ufo.h);
+
+  if(pipes.length === 0 || pipes[pipes.length-1].x < GAME_WIDTH - 300) addPipe();
+
+  pipes.forEach((p,i)=>{
+    if(!gameOver) p.x -= pipeSpeed; 
+
+    ctx.fillStyle = 'green';
+    ctx.fillRect(p.x, 0, pipeWidth, p.top);
+    ctx.fillRect(p.x, GAME_HEIGHT - p.bottom, pipeWidth, p.bottom);
+
+    if(!p.passed && ufo.x > p.x + pipeWidth){
+      p.passed = true;
+      score++;
+      pipeSpeed += 0.02; // gradually increase speed
+      if(p.checkpoint){
+        lastCheckpointScore = score;
+        lastCheckpointCoins = coinsCollected;
+      }
+    }
+
+    if(collision(p)) gameOver = true;
+    if(p.x + pipeWidth < 0) pipes.splice(i,1);
+  });
+
+  coins.forEach((c,i)=>{
+    if(!gameOver) c.x -= pipeSpeed;
+    if(collectCoin(c)){
+      c.collected = true;
+      coinsCollected++;
+      if(pipes.find(p=>p.checkpoint && c.x >= p.x && c.x <= p.x+pipeWidth)){
+        lastCheckpointScore = score;
+        lastCheckpointCoins = coinsCollected;
+      }
+    }
+    if(!c.collected) ctx.drawImage(coinImg, c.x, c.y, c.w, c.h);
+    if(c.x + c.w < 0) coins.splice(i,1);
+  });
+
+  ctx.fillStyle = 'white';
+  ctx.font = '30px Arial';
+  ctx.fillText(`Score: ${score}`, 20, 50);
+  ctx.fillText(`Coins: ${coinsCollected}`, 20, 90);
+
+  if(gameOver){
+    ctx.fillStyle = 'red';
+    ctx.font = '50px Arial';
+    ctx.fillText('🛸 GAME OVER 🛸', GAME_WIDTH/2 - 180, GAME_HEIGHT/2 - 30);
+    ctx.font = '30px Arial';
+    ctx.fillText('Tap anywhere to return to last checkpoint', GAME_WIDTH/2 - 250, GAME_HEIGHT/2 + 20);
+  }
+
+  // Checkpoint text
+  pipes.forEach(p=>{
+    if(p.checkpoint){
+      ctx.font = 'bold 40px Arial';
+      ctx.fillStyle = 'red';
+      ctx.shadowColor = 'yellow';
+      ctx.shadowBlur = 10;
+      ctx.fillText('CHECKPOINT', p.x + 5, p.top + pipeGap/2 + 15);
+      ctx.shadowBlur = 0;
+    }
+  });
+
+  ctx.restore();
+  requestAnimationFrame(update);
+}
+
+// Flap
+function flap(event){
+  let rect = canvas.getBoundingClientRect();
+  let x = (event.clientX || event.touches[0].clientX) - rect.left;
+  let y = (event.clientY || event.touches[0].clientY) - rect.top;
+
+  x /= scaleX;
+  y /= scaleY;
+
+  if(gameOver) resumeFromCheckpoint();
+  else ufo.vel = ufo.lift;
+}
+
+document.addEventListener('touchstart', flap);
+document.addEventListener('mousedown', flap);
+document.getElementById('resetBtn').addEventListener('click', resetGame);
+
+update();
+</script>
+</body>
+</html>
+// Resume from last checkpoint
+function resumeFromCheckpoint() {
+  gameOver = false;
+  ufo.y = GAME_HEIGHT/2;
+  ufo.vel = 0;
+  score = lastCheckpointScore;
+  coinsCollected = lastCheckpointCoins;
+  pipes = [];
+  coins = [];
+  pipeCount = lastCheckpointScore; // approximate pipe count for checkpoint
+}
+
+// Reset game from start
+function resetGame() {
+  gameOver = false;
+  ufo.y = GAME_HEIGHT/2;
+  ufo.vel = 0;
+  score = 0;
+  coinsCollected = 0;
+  lastCheckpointScore = 0;
+  lastCheckpointCoins = 0;
+  pipes = [];
+  coins = [];
+  pipeCount = 0;
+}
+
+// Update game
+function update() {
+  ctx.save();
+  ctx.scale(scaleX, scaleY);
+  ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+  if(!gameOver) ufo.vel += ufo.gravity;
+  ufo.y += ufo.vel;
+
+  // Boundaries
+  if(ufo.y + ufo.h > GAME_HEIGHT || ufo.y < 0) gameOver = true;
+
+  // Draw UFO
+  ctx.drawImage(ufoImg, ufo.x, ufo.y, ufo.w, ufo.h);
+
+  // Add pipes
+  if(pipes.length === 0 || pipes[pipes.length-1].x < GAME_WIDTH - 300) addPipe();
+
+  // Draw pipes
+  pipes.forEach((p,i)=>{
+    if(!gameOver) p.x -= 3;
+
+    ctx.fillStyle = 'green';
+    ctx.fillRect(p.x, 0, pipeWidth, p.top);
+    ctx.fillRect(p.x, GAME_HEIGHT - p.bottom, pipeWidth, p.bottom);
+
+    // Score
+    if(!p.passed && ufo.x > p.x + pipeWidth){
+      p.passed = true;
+      score++;
+      if(p.checkpoint){
+        lastCheckpointScore = score;
+        lastCheckpointCoins = coinsCollected;
+      }
+    }
+
+    if(collision(p)) gameOver = true;
+    if(p.x + pipeWidth < 0) pipes.splice(i,1);
+  });
+
+  // Draw coins
+  coins.forEach((c,i)=>{
+    if(!gameOver) c.x -=3;
+    if(collectCoin(c)){
+      c.collected = true;
+      coinsCollected++;
+      if(pipes.find(p=>p.checkpoint && c.x >= p.x && c.x <= p.x+pipeWidth)){
+        lastCheckpointScore = score;
+        lastCheckpointCoins = coinsCollected;
+      }
+    }
+    if(!c.collected) ctx.drawImage(coinImg, c.x, c.y, c.w, c.h);
+    if(c.x + c.w < 0) coins.splice(i,1);
+  });
+
+  // Draw score and coins
+  ctx.fillStyle = 'white';
+  ctx.font = '30px Arial';
+  ctx.fillText(`Score: ${score}`, 20, 50);
+  ctx.fillText(`Coins: ${coinsCollected}`, 20, 90);
+
+  // Game over
+  if(gameOver){
+    ctx.fillStyle = 'red';
+    ctx.font = '50px Arial';
+    ctx.fillText('🛸 GAME OVER 🛸', GAME_WIDTH/2 - 180, GAME_HEIGHT/2 - 30);
+    ctx.font = '30px Arial';
+    ctx.fillText('Tap anywhere to return to last checkpoint', GAME_WIDTH/2 - 250, GAME_HEIGHT/2 + 20);
+  }
+
+  // Draw checkpoint text
+  pipes.forEach(p=>{
+    if(p.checkpoint){
+      ctx.fillStyle = 'yellow';
+      ctx.font = '25px Arial';
+      ctx.fillText('Checkpoint', p.x + 5, p.top + pipeGap/2 + 10);
+    }
+  });
+
+  ctx.restore();
+  requestAnimationFrame(update);
+}
+
+// Handle tap
+function flap(event){
+  let rect = canvas.getBoundingClientRect();
+  let x = (event.clientX || event.touches[0].clientX) - rect.left;
+  let y = (event.clientY || event.touches[0].clientY) - rect.top;
+
+  x /= scaleX;
+  y /= scaleY;
+
+  if(gameOver) resumeFromCheckpoint();
+  else ufo.vel = ufo.lift;
+}
+
+document.addEventListener('touchstart', flap);
+document.addEventListener('mousedown', flap);
+document.getElementById('resetBtn').addEventListener('click', resetGame);
+
+update();
+</script>
+</body>
+    </html>
