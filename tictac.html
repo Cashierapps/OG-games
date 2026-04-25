@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>X & O Fixed Mobile Pro</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+/* 🔒 FULL SCREEN LOCK (FIXES KEYBOARD SHIFT) */
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    position: fixed;
+    overflow: hidden;
+    background: radial-gradient(#111, #000);
+    font-family: monospace;
+    color: #0f0;
+}
+
+/* SETUP */
+#setup {
+    position: absolute;
+    top: 20px;
+    text-align: center;
+    width: 100%;
+    z-index: 10;
+}
+
+input {
+    padding: 6px;
+    margin: 5px;
+    width: 120px;
+    background: #111;
+    border: 1px solid #0f0;
+    color: #0f0;
+}
+
+/* GAME AREA (WILL BE LOCKED) */
+#gameArea {
+    position: absolute;
+    top: 55%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+/* HUD */
+#hud {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+
+.card {
+    width: 140px;
+    padding: 10px;
+    background: #111;
+    border: 2px solid #0f0;
+    border-radius: 10px;
+    text-align: center;
+}
+
+/* STATUS */
+#status {
+    margin-bottom: 10px;
+}
+
+/* BOARD */
+#boardWrap {
+    position: relative;
+}
+
+#board {
+    display: grid;
+    grid-template-columns: repeat(3, 100px);
+    grid-gap: 6px;
+    padding: 10px;
+    background: #0a0a0a;
+    border: 2px solid #0f0;
+    border-radius: 12px;
+}
+
+.cell {
+    width: 100px;
+    height: 100px;
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 42px;
+    cursor: pointer;
+    border: 2px solid #0f0;
+}
+
+/* WIN LINE */
+#winLine {
+    position: absolute;
+    height: 6px;
+    background: red;
+    display: none;
+    border-radius: 6px;
+    box-shadow: 0 0 12px red;
+    transform-origin: left center;
+}
+
+/* BUTTON */
+button {
+    margin-top: 10px;
+    padding: 8px 18px;
+    background: #0f0;
+    border: none;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 6px;
+}
+</style>
+</head>
+
+<body>
+
+<!-- SETUP -->
+<div id="setup">
+    <input id="p1" placeholder="Player 1 (X)">
+    <input id="p2" placeholder="Player 2 (O)">
+    <button onclick="startGame()">Start</button>
+</div>
+
+<!-- GAME AREA -->
+<div id="gameArea">
+
+    <div id="hud">
+        <div class="card" id="p1Card">Player 1: 0</div>
+        <div class="card" id="p2Card">Player 2: 0</div>
+    </div>
+
+    <div id="status">Enter names to start</div>
+
+    <div id="boardWrap">
+        <div id="board"></div>
+        <div id="winLine"></div>
+    </div>
+
+    <button onclick="resetRound()">Restart</button>
+</div>
+
+<script>
+
+let board = ["","","","","","","","",""];
+let current = "X";
+let gameOver = false;
+
+let p1 = "Player 1";
+let p2 = "Player 2";
+
+let score1 = 0;
+let score2 = 0;
+
+let anim = {
+    active:false,
+    x:0,
+    y:0,
+    dx:0,
+    dy:0,
+    length:0,
+    progress:0
+};
+
+const boardEl = document.getElementById("board");
+const winLine = document.getElementById("winLine");
+const statusEl = document.getElementById("status");
+
+/* START GAME */
+function startGame(){
+
+    p1 = document.getElementById("p1").value || "Player 1";
+    p2 = document.getElementById("p2").value || "Player 2";
+
+    document.getElementById("setup").style.display = "none";
+
+    statusEl.innerText = p1 + " Turn (X)";
+
+    createBoard();
+}
+
+/* BOARD */
+function createBoard(){
+    boardEl.innerHTML = "";
+
+    board.forEach((c,i)=>{
+        let d = document.createElement("div");
+        d.className = "cell";
+        d.innerText = c;
+        d.onclick = ()=>play(i);
+        boardEl.appendChild(d);
+    });
+
+    boardEl.appendChild(winLine);
+}
+
+/* PLAY */
+function play(i){
+
+    if(board[i] || gameOver) return;
+
+    board[i] = current;
+
+    let winCombo = checkWin(current);
+
+    if(winCombo){
+        gameOver = true;
+
+        if(current === "X") score1++;
+        else score2++;
+
+        updateScore();
+
+        startWin(winCombo);
+
+        statusEl.innerText =
+            (current === "X" ? p1 : p2) + " Wins!";
+
+        createBoard();
+        animateWin();
+        return;
+    }
+
+    if(!board.includes("")){
+        statusEl.innerText = "Draw!";
+        gameOver = true;
+        return;
+    }
+
+    current = current === "X" ? "O" : "X";
+    statusEl.innerText = current === "X" ? p1 + " Turn" : p2 + " Turn";
+
+    createBoard();
+}
+
+/* WIN CHECK */
+function checkWin(p){
+    const win = [
+        [0,1,2],[3,4,5],[6,7,8],
+        [0,3,6],[1,4,7],[2,5,8],
+        [0,4,8],[2,4,6]
+    ];
+
+    return win.find(c => c.every(i => board[i] === p));
+}
+
+/* POSITION */
+function getPos(i){
+
+    const size = 100;
+    const gap = 6;
+    const offset = 10;
+
+    let r = Math.floor(i/3);
+    let c = i%3;
+
+    return {
+        x: offset + c*(size+gap) + size/2,
+        y: offset + r*(size+gap) + size/2
+    };
+}
+
+/* WIN INIT */
+function startWin(combo){
+
+    let a = getPos(combo[0]);
+    let b = getPos(combo[2]);
+
+    let dx = b.x - a.x;
+    let dy = b.y - a.y;
+
+    let length = Math.sqrt(dx*dx + dy*dy);
+
+    anim = {
+        active:true,
+        x:a.x,
+        y:a.y,
+        dx,
+        dy,
+        length,
+        progress:0
+    };
+}
+
+/* ANIMATION */
+function animateWin(){
+
+    if(!anim.active) return;
+
+    function loop(){
+
+        anim.progress += 0.04;
+        if(anim.progress > 1) anim.progress = 1;
+
+        let angle = Math.atan2(anim.dy, anim.dx);
+
+        let x1 = anim.x;
+        let y1 = anim.y;
+
+        winLine.style.display = "block";
+        winLine.style.width = anim.length + "px";
+        winLine.style.left = x1 + "px";
+        winLine.style.top = y1 + "px";
+        winLine.style.transform = `rotate(${angle}rad)`;
+
+        if(anim.progress < 1){
+            requestAnimationFrame(loop);
+        }
+    }
+
+    loop();
+}
+
+/* SCORE */
+function updateScore(){
+    document.getElementById("p1Card").innerText = p1 + ": " + score1;
+    document.getElementById("p2Card").innerText = p2 + ": " + score2;
+}
+
+/* RESET */
+function resetRound(){
+    board = ["","","","","","","","",""];
+    current = "X";
+    gameOver = false;
+    winLine.style.display = "none";
+
+    statusEl.innerText = p1 + " Turn";
+
+    createBoard();
+}
+
+createBoard();
+
+</script>
+
+</body>
+  </html>
