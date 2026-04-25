@@ -1,216 +1,181 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Retro Arcade • Zino's Games</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            background: #000;
-            color: #0f0;
-            font-family: 'Courier New', monospace;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-            overflow-x: hidden;
-        }
-        header {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-        h1 {
-            font-size: 3rem;
-            text-shadow: 0 0 10px #0f0;
-            margin-bottom: 10px;
-        }
-        .subtitle {
-            color: #0a0;
-            font-size: 1.2rem;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zino Console Arcade</title>
 
-        .games-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 30px;
-            max-width: 1000px;
-            width: 100%;
-        }
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
 
-        .game-card {
-            background: #111;
-            border: 3px solid #0f0;
-            border-radius: 12px;
-            overflow: hidden;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            position: relative;
-        }
-        .game-card:hover {
-            transform: scale(1.05) translateY(-10px);
-            box-shadow: 0 0 30px #0f0;
-            border-color: #0f0;
-        }
+body {
+    background: radial-gradient(#111, #000);
+    color: #0f0;
+    font-family: 'Courier New', monospace;
+}
 
-        .game-card.snake {
-            border-color: #0f0;
-        }
-        .game-card.flappy {
-            border-color: #00ffff;
-        }
+/* HEADER */
+header {
+    text-align: center;
+    padding: 25px 10px;
+}
 
-        .thumbnail {
-            height: 220px;
-            background: #000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 6rem;
-            position: relative;
-            overflow: hidden;
-        }
-        .snake .thumbnail { background: linear-gradient(#111, #000); }
-        .flappy .thumbnail { background: linear-gradient(#0a1f3a, #000); }
+h1 {
+    font-size: 2.8rem;
+    text-shadow: 0 0 15px #0f0;
+}
 
-        .game-info {
-            padding: 20px;
-            text-align: center;
-        }
-        .game-info h2 {
-            margin-bottom: 10px;
-            font-size: 1.8rem;
-        }
-        .game-info p {
-            color: #888;
-            line-height: 1.5;
-            font-size: 1rem;
-        }
+.subtitle {
+    color: #060;
+}
 
-        .play-btn {
-            margin-top: 15px;
-            padding: 12px 30px;
-            font-size: 1.1rem;
-            background: #0f0;
-            color: #000;
-            border: none;
-            border-radius: 8px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .play-btn:hover {
-            background: #0c0;
-            transform: scale(1.05);
-        }
+/* MENU */
+.menu {
+    width: 100%;
+    max-width: 900px;
+    margin: auto;
+    padding: 10px;
+}
 
-        .flappy .play-btn {
-            background: #00ffff;
-            color: #000;
-        }
-        .flappy .play-btn:hover {
-            background: #00cccc;
-        }
+/* GAME TILE */
+.game {
+    position: relative;
+    height: 170px;
+    margin: 16px 0;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 2px solid #0f0;
+    cursor: pointer;
+    transition: 0.25s;
+    display: flex;
+    align-items: center;
+}
 
-        footer {
-            margin-top: 60px;
-            color: #555;
-            font-size: 0.9rem;
-            text-align: center;
-        }
+.game:hover {
+    transform: scale(1.03);
+    box-shadow: 0 0 20px #0f0;
+}
 
-        /* Future menu items placeholder */
-        .future-games {
-            margin-top: 60px;
-            width: 100%;
-            max-width: 800px;
-        }
-        .future-games h3 {
-            text-align: center;
-            color: #0a0;
-            margin-bottom: 20px;
-        }
-    </style>
+/* CONTENT */
+.content {
+    position: relative;
+    z-index: 2;
+    padding: 20px;
+}
+
+.title {
+    font-size: 1.6rem;
+    margin-bottom: 5px;
+}
+
+.desc {
+    font-size: 0.85rem;
+    color: #aaa;
+}
+
+/* ICON */
+.icon {
+    position: absolute;
+    right: 20px;
+    font-size: 3rem;
+    opacity: 0.8;
+}
+
+/* COLORS */
+.blockclash { background: linear-gradient(90deg,#220000,#000); }
+.tictac { background: linear-gradient(90deg,#002222,#000); }
+.ai { background: linear-gradient(90deg,#111144,#000); }
+.tetris { background: linear-gradient(90deg,#332200,#000); }
+.snake { background: linear-gradient(90deg,#003300,#000); }
+.flappy { background: linear-gradient(90deg,#001133,#000); }
+
+/* FOOTER */
+footer {
+    text-align: center;
+    margin: 40px 0 20px;
+    color: #555;
+}
+
+footer a {
+    color: #0f0;
+    text-decoration: none;
+    font-weight: bold;
+}
+</style>
 </head>
+
 <body>
-    <header>
-        <h1>RETRO ARCADE</h1>
-        <p class="subtitle">Zino's Classic Games Collection</p>
-    </header>
 
-    <div class="games-grid">
-        <!-- Snake Game Card -->
-        <div class="game-card snake" onclick="playSnake()">
-            <div class="thumbnail">
-                🐍
-            </div>
-            <div class="game-info">
-                <h2>NOKIA SNAKE</h2>
-                <p>The classic retro snake game with Nokia vibes.<br>
-                   Eat the red food • Avoid walls & yourself</p>
-                <button class="play-btn">PLAY SNAKE 🐍</button>
-            </div>
-        </div>
+<header>
+    <h1>ZINO ARCADE</h1>
+    <p class="subtitle">Console Game Launcher</p>
+</header>
 
-        <!-- Flappy UFO Card -->
-        <div class="game-card flappy" onclick="playFlappy()">
-            <div class="thumbnail">
-                𓆩𓆪
-            </div>
-            <div class="game-info">
-                <h2>FLAPPY UFO</h2>
-                <p>Easy mode flappy bird with checkpoint system.<br>
-                   Tap to flap • Collect coins • Survive!</p>
-                <button class="play-btn">PLAY FLAPPY BIRD 𓆩𓆪</button>
-            </div>
+<div class="menu">
+
+    <div class="game blockclash" onclick="go('blockclash.html')">
+        <div class="content">
+            <div class="title">BLOCK CLASH</div>
+            <div class="desc">Destroy blocks, survive waves, upgrade chaos.</div>
         </div>
+        <div class="icon">⚔️</div>
     </div>
 
-    <!-- Future-proof section -->
-    <div class="future-games">
-        <h3>COMING SOON...</h3>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; opacity: 0.6;">
-            <div style="background:#111; border:2px solid #333; padding:20px; text-align:center; border-radius:8px;">
-                <div style="font-size:3rem; margin-bottom:10px;">🎮</div>
-                <strong>Pong</strong><br>
-                <small>Classic 2-player or AI</small>
-            </div>
-            <div style="background:#111; border:2px solid #333; padding:20px; text-align:center; border-radius:8px;">
-                <div style="font-size:3rem; margin-bottom:10px;">🚀</div>
-                <strong>Space Shooter</strong><br>
-                <small>More UFO action</small>
-            </div>
-            <div style="background:#111; border:2px solid #333; padding:20px; text-align:center; border-radius:8px;">
-                <div style="font-size:3rem; margin-bottom:10px;">🕹️</div>
-                <strong>Tetris</strong><br>
-                <small>Block dropping fun</small>
-            </div>
+    <div class="game tictac" onclick="go('tictac.html')">
+        <div class="content">
+            <div class="title">TIC TAC TOE (2P)</div>
+            <div class="desc">Play with friends in classic X & O battle.</div>
         </div>
+        <div class="icon">❌⭕</div>
     </div>
 
-    <footer>
-        Made with ❤️ for retro gaming • Add more games easily by copying the card pattern
-    </footer>
+    <div class="game ai" onclick="go('tictacai.html')">
+        <div class="content">
+            <div class="title">TIC TAC AI</div>
+            <div class="desc">Challenge smart AI opponent.</div>
+        </div>
+        <div class="icon">🤖</div>
+    </div>
 
-    <script>
-        function playSnake() {
-            window.location.href = 'snake.html';
-        }
+    <div class="game tetris" onclick="go('Tetris.html')">
+        <div class="content">
+            <div class="title">TETRIS</div>
+            <div class="desc">Drop blocks, clear lines, survive longer.</div>
+        </div>
+        <div class="icon">🧩</div>
+    </div>
 
-        function playFlappy() {
-            window.location.href = 'flappy.html';
-        }
+    <div class="game snake" onclick="go('snake.html')">
+        <div class="content">
+            <div class="title">SNAKE</div>
+            <div class="desc">Eat food, grow longer, avoid yourself.</div>
+        </div>
+        <div class="icon">🐍</div>
+    </div>
 
-        // Keyboard support (Enter on focused card - optional enhancement)
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                // You can add focus management later if you want
-            }
-        });
+    <div class="game flappy" onclick="go('flappy.html')">
+        <div class="content">
+            <div class="title">FLAPPY UFO</div>
+            <div class="desc">Tap to fly, dodge obstacles, survive.</div>
+        </div>
+        <div class="icon">🚀</div>
+    </div>
 
-        // Optional: Add a simple "back to menu" button in your game files later
-        console.log('%c✅ Homepage ready! Rename your first file to snake.html if not already done.', 'color:#0f0; font-size:16px');
-    </script>
+</div>
+
+<footer>
+    Made by <a href="#">ZinoCashierDc (CashierApps)</a>
+</footer>
+
+<script>
+function go(page){
+    window.location.href = page;
+}
+</script>
+
 </body>
-  </html>
+</html>
