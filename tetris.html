@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tetris Final Polish</title>
+
+<style>
+body {
+    margin: 0;
+    background: #000;
+    color: #0f0;
+    font-family: monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+}
+
+canvas {
+    background: #111;
+    border: 2px solid #0f0;
+}
+
+.hud {
+    width: 220px;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+/* CONTROLS */
+.controls {
+    margin-top: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.rotateBtn {
+    width: 90px;
+    height: 40px;
+    background: #0f0;
+    border: none;
+    color: #000;
+    font-weight: bold;
+    border-radius: 10px;
+}
+
+.row {
+    display: flex;
+    gap: 10px;
+}
+
+.btn {
+    width: 70px;
+    height: 45px;
+    background: #0f0;
+    border: none;
+    color: #000;
+    font-weight: bold;
+    border-radius: 10px;
+}
+
+/* 💀 GAME OVER UI (NEW) */
+#gameOverScreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.92);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+
+.box {
+    border: 2px solid #0f0;
+    padding: 20px;
+    text-align: center;
+    background: #000;
+    width: 220px;
+}
+
+.gameBtn {
+    margin-top: 10px;
+    width: 120px;
+    padding: 10px;
+    background: #0f0;
+    border: none;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.btn:active,
+.rotateBtn:active,
+.gameBtn:active {
+    transform: scale(0.95);
+}
+</style>
+</head>
+
+<body>
+
+<div class="hud">
+    <div>Score: <span id="score">0</span></div>
+    <div>Lvl: <span id="level">1</span></div>
+</div>
+
+<canvas id="board" width="200" height="400"></canvas>
+
+<div class="controls">
+    <button class="rotateBtn" onclick="rotate()">ROTATE</button>
+
+    <div class="row">
+        <button class="btn" onclick="move(-1)">LEFT</button>
+        <button class="btn" id="downBtn">DOWN</button>
+        <button class="btn" onclick="move(1)">RIGHT</button>
+    </div>
+</div>
+
+<!-- 💀 GAME OVER SCREEN -->
+<div id="gameOverScreen">
+    <div class="box">
+        <h2>GAME OVER</h2>
+        <button class="gameBtn" onclick="restart()">RESTART</button>
+        <button class="gameBtn" onclick="exitGame()">EXIT</button>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById("board");
+const ctx = canvas.getContext("2d");
+
+const BLOCK = 20;
+const COLS = 10;
+const ROWS = 20;
+
+let board = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+
+let score = 0;
+let level = 1;
+let dropSpeed = 650;
+
+let lastTime = 0;
+let dropCounter = 0;
+
+let softDrop = false;
+let gameOver = false;
+
+/* 🔊 CLEAN SOUND SYSTEM */
+const audio = new (window.AudioContext || window.webkitAudioContext)();
+
+function beep(f,t,type="sine",vol=0.05){
+    const o = audio.createOscillator();
+    const g = audio.createGain();
+
+    o.frequency.value = f;
+    o.type = type;
+    g.gain.value = vol;
+
+    o.connect(g);
+    g.connect(audio.destination);
+
+    o.start();
+    setTimeout(()=>o.stop(),t);
+}
+
+/* 🎯 LAND */
+function landSound(){
+    beep(200,60);
+}
+
+/* 💥 LINE CLEAR */
+function lineSound(){
+    beep(400,80);
+    setTimeout(()=>beep(700,100),80);
+}
+
+/* 💀 IMPROVED GAME OVER SOUND */
+function gameOverSound(){
+    beep(400,120,"sine",0.08);
+    setTimeout(()=>beep(300,150),120);
+    setTimeout(()=>beep(200,200),250);
+    setTimeout(()=>beep(120,300),450);
+}
+
+/* PIECES */
+const PIECES = [
+    [[1,1,1,1]],
+    [[1,1],[1,1]],
+    [[0,1,0],[1,1,1]],
+    [[1,0,0],[1,1,1]],
+    [[0,0,1],[1,1,1]],
+    [[1,1,0],[0,1,1]],
+    [[0,1,1],[1,1,0]]
+];
+
+let current;
+
+function spawn(){
+    current = {
+        shape: PIECES[Math.floor(Math.random()*PIECES.length)],
+        x: 3,
+        y: 0
+    };
+
+    if(collide()){
+        triggerGameOver();
+    }
+}
+
+/* COLLISION */
+function collide(){
+    for(let y=0;y<current.shape.length;y++){
+        for(let x=0;x<current.shape[y].length;x++){
+            if(current.shape[y][x]){
+                let nx = x + current.x;
+                let ny = y + current.y;
+
+                if(nx < 0 || nx >= COLS || ny >= ROWS) return true;
+                if(board[ny] && board[ny][nx]) return true;
+            }
+        }
+    }
+    return false;
+}
+
+/* MERGE */
+function merge(){
+    current.shape.forEach((r,y)=>{
+        r.forEach((v,x)=>{
+            if(v) board[y+current.y][x+current.x] = 1;
+        });
+    });
+}
+
+/* CLEAR */
+function clearLines(){
+    for(let y=ROWS-1;y>=0;y--){
+        if(board[y].every(v=>v===1)){
+            board.splice(y,1);
+            board.unshift(Array(COLS).fill(0));
+            score += 100;
+            lineSound();
+        }
+    }
+
+    level = Math.floor(score/500)+1;
+    dropSpeed = Math.max(120, 650 - level*50);
+
+    document.getElementById("score").textContent = score;
+    document.getElementById("level").textContent = level;
+}
+
+/* ROTATE */
+function rotate(){
+    const r = current.shape[0].map((_,i)=>
+        current.shape.map(row=>row[i]).reverse()
+    );
+
+    let old = current.shape;
+    current.shape = r;
+
+    if(collide()) current.shape = old;
+}
+
+/* MOVE */
+function move(dir){
+    current.x += dir;
+    if(collide()) current.x -= dir;
+}
+
+/* GAME OVER (UI + SOUND) */
+function triggerGameOver(){
+    gameOver = true;
+    gameOverSound();
+    document.getElementById("gameOverScreen").style.display = "flex";
+}
+
+/* RESTART */
+function restart(){
+    location.reload();
+}
+
+/* EXIT */
+function exitGame(){
+    window.close();
+}
+
+/* DRAW */
+function draw(){
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    board.forEach((r,y)=>{
+        r.forEach((v,x)=>{
+            if(v){
+                ctx.fillStyle="#0f0";
+                ctx.fillRect(x*BLOCK,y*BLOCK,BLOCK-2,BLOCK-2);
+            }
+        });
+    });
+
+    current.shape.forEach((r,y)=>{
+        r.forEach((v,x)=>{
+            if(v){
+                ctx.fillStyle="#0f0";
+                ctx.fillRect((x+current.x)*BLOCK,(y+current.y)*BLOCK,BLOCK-2,BLOCK-2);
+            }
+        });
+    });
+}
+
+/* LOOP */
+function update(time=0){
+    if(gameOver) return;
+
+    let delta = time - lastTime;
+    lastTime = time;
+    dropCounter += delta;
+
+    let speed = softDrop ? 50 : dropSpeed;
+
+    if(dropCounter > speed){
+        current.y++;
+
+        if(collide()){
+            current.y--;
+            merge();
+            landSound();
+            clearLines();
+            spawn();
+        }
+
+        dropCounter = 0;
+    }
+
+    draw();
+    requestAnimationFrame(update);
+}
+
+/* CONTROLS */
+document.addEventListener("keydown",e=>{
+    if(e.key==="ArrowLeft") move(-1);
+    if(e.key==="ArrowRight") move(1);
+    if(e.key==="ArrowUp") rotate();
+    if(e.key==="ArrowDown") softDrop = true;
+});
+
+document.addEventListener("keyup",e=>{
+    if(e.key==="ArrowDown") softDrop = false;
+});
+
+document.getElementById("downBtn").addEventListener("touchstart",()=>{
+    softDrop = true;
+});
+
+document.getElementById("downBtn").addEventListener("touchend",()=>{
+    softDrop = false;
+});
+
+/* START */
+spawn();
+update();
+</script>
+
+</body>
+  </html>
